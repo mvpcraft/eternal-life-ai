@@ -1,7 +1,7 @@
 import type { Persona, Turn } from './types';
 
 /**
- * Everything lives in the browser. No database, no accounts — which is both
+ * Everything lives in the browser. No database, no accounts, which is both
  * the client's constraint and, for this kind of data, the right default.
  */
 const PERSONA_KEY = 'eternal.persona';
@@ -11,7 +11,7 @@ export function savePersona(p: Persona) {
   try {
     localStorage.setItem(PERSONA_KEY, JSON.stringify(p));
   } catch {
-    // Quota exceeded on a very large transcript — the session still works,
+    // Quota exceeded on a very large transcript. The session still works,
     // it just won't survive a refresh.
   }
 }

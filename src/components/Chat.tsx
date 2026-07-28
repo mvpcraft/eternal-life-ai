@@ -53,7 +53,7 @@ export default function Chat({ persona, initialTurns, onRestart }: Props) {
         const body = await res.json().catch(() => ({}));
         throw new Error(
           res.status === 429
-            ? 'Rate limited — wait a moment and try again.'
+            ? 'Rate limited. Wait a moment and try again.'
             : body.error || 'No reply came back.'
         );
       }

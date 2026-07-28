@@ -52,7 +52,7 @@ export async function withRetry<T>(
     } catch (err) {
       lastErr = err;
       if (!isRetryable(err) || i === attempts - 1) throw err;
-      // 2s, 4s, 8s — plus jitter so parallel batches don't sync up.
+      // 2s, 4s, 8s, plus jitter so parallel batches don't sync up.
       await sleep(baseDelayMs * 2 ** i + Math.floor(Math.random() * 500));
     }
   }

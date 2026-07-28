@@ -7,7 +7,7 @@ export const maxDuration = 60;
 
 /**
  * This is the "training" step from the user's point of view. There is no
- * fine-tuning — we distil the person's writing style into a structured profile
+ * fine-tuning. We distil the person's writing style into a structured profile
  * that gets injected into the chat system prompt on every turn.
  */
 function buildPrompt(target: string, lines: string) {
@@ -22,7 +22,7 @@ Pay attention to:
 - how they open and close conversations
 - recurring topics and running jokes
 - tone: warm, blunt, sarcastic, anxious, teasing
-- typos and grammatical habits they repeat — DO NOT correct these, they are part of the voice
+- typos and grammatical habits they repeat. DO NOT correct these, they are part of the voice
 
 For "exemplars", copy 8-15 of their most characteristic messages VERBATIM, exactly as written.
 
@@ -68,7 +68,7 @@ export async function POST(req: Request) {
       );
     }
 
-    // Keep the most recent slice — enough signal, well under the context limit.
+    // Keep the most recent slice: enough signal, well under the context limit.
     const lines = transcript
       .slice(-600)
       .map((m) => `${m.sender}: ${m.text}`)

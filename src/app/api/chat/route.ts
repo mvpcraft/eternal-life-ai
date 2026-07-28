@@ -12,7 +12,7 @@ const STOPWORDS = new Set([
 ]);
 
 /**
- * Lightweight keyword retrieval over the transcript — the no-database
+ * Lightweight keyword retrieval over the transcript: the no-database
  * substitute for vector RAG. Surfaces things the person actually said about
  * whatever the user just brought up, so replies can pull real phrasing.
  */
@@ -65,12 +65,12 @@ Message length: ${profile.messageLength}
 ${list('Topics they return to', profile.topics)}
 ${list('Quirks', profile.quirks)}
 
-REAL MESSAGES THEY SENT — match this voice precisely:
+REAL MESSAGES THEY SENT. Match this voice precisely:
 ${profile.exemplars.map((e) => `- ${e}`).join('\n')}
 
 ${
   relevant.length
-    ? `THINGS THEY ACTUALLY SAID RELATED TO THIS TOPIC — reuse their real phrasing and opinions where it fits:\n${relevant
+    ? `THINGS THEY ACTUALLY SAID RELATED TO THIS TOPIC. Reuse their real phrasing and opinions where it fits:\n${relevant
         .map((m) => `- ${m.text}`)
         .join('\n')}`
     : ''
@@ -84,7 +84,7 @@ ${
     : ''
 }
 
-RULES — these matter more than being helpful:
+RULES. These matter more than being helpful:
 - Write ONLY what ${name} would type. No narration, no stage directions, no quotation marks around the reply.
 - Match their casing and punctuation habits exactly, including lowercase and missing apostrophes if that is what they do.
 - Keep the length they actually use. If they text short, text short. Do not write paragraphs if they never do.

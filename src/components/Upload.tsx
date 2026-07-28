@@ -4,7 +4,7 @@ import { useRef, useState } from 'react';
 import { downscale, chunk, sortByName } from '@/lib/images';
 import type { ChatMessage } from '@/lib/types';
 
-const BATCH_SIZE = 4; // images per request — balances RPM against payload size
+const BATCH_SIZE = 4; // images per request; balances RPM against payload size
 const PAUSE_MS = 4500; // ~13 req/min, under the free-tier ceiling
 
 type Props = {
@@ -45,7 +45,7 @@ export default function Upload({ onDone }: Props) {
 
       const all: ChatMessage[] = [];
       for (let i = 0; i < batches.length; i++) {
-        setStatus(`Reading screenshots — batch ${i + 1} of ${batches.length}…`);
+        setStatus(`Reading screenshots, batch ${i + 1} of ${batches.length}…`);
 
         const res = await fetch('/api/extract', {
           method: 'POST',
@@ -69,7 +69,7 @@ export default function Upload({ onDone }: Props) {
 
         // Throttle between batches so we stay under the requests-per-minute cap.
         if (i < batches.length - 1) {
-          setStatus(`Read ${all.length} messages — pausing for rate limit…`);
+          setStatus(`Read ${all.length} messages, pausing for rate limit…`);
           await new Promise((r) => setTimeout(r, PAUSE_MS));
         }
       }
@@ -129,7 +129,7 @@ export default function Upload({ onDone }: Props) {
         ) : (
           <>
             <p className="text-lg font-medium">Drop screenshots here</p>
-            <p className="mt-1 text-sm text-muted">or click to browse — 20 to 50 works well</p>
+            <p className="mt-1 text-sm text-muted">or click to browse. 20 to 50 works well</p>
           </>
         )}
       </div>

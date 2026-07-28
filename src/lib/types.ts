@@ -12,7 +12,7 @@ export type ExtractedBatch = {
 
 /**
  * The distilled writing style of one participant. This is what makes replies
- * sound like them — it is injected into the chat system prompt on every turn.
+ * sound like them. It is injected into the chat system prompt on every turn.
  */
 export type StyleProfile = {
   displayName: string;

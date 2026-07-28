@@ -76,7 +76,7 @@ export default function PickSender({
 
       {busy && (
         <p className="mt-6 text-sm text-muted">
-          Studying how they write — this takes a few seconds…
+          Studying how they write. This takes a few seconds…
         </p>
       )}
 

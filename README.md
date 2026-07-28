@@ -1,4 +1,4 @@
-# Eternal Life AI — chat-style persona MVP
+# Eternal Life AI - chat-style persona MVP
 
 Upload screenshots of a chat conversation. The app reads them, learns how one
 person writes, and lets you talk to an AI that replies in that style.
@@ -7,15 +7,15 @@ No login. No database. No file storage. No paid services. Deploys to Vercel free
 
 ## How it actually works
 
-There is **no model training or fine-tuning** — no free API offers it, and 50
+There is **no model training or fine-tuning**. No free API offers it, and 50
 images is not a training set. What happens instead:
 
-1. **Extract** — screenshots are downscaled in the browser, batched, and sent to
+1. **Extract**: screenshots are downscaled in the browser, batched, and sent to
    Gemini Vision, which transcribes every message with its sender.
-2. **Distil** — the transcript is analysed into a structured *style profile*:
+2. **Distil**: the transcript is analysed into a structured *style profile*,
    casing, punctuation, message length, signature phrases, emoji, topics, quirks,
    and 8–15 verbatim example messages.
-3. **Imitate** — every chat turn injects that profile, plus real excerpts matching
+3. **Imitate**: every chat turn injects that profile, plus real excerpts matching
    what you just said, into the system prompt.
 
 From the user's side the result is the same: upload, then chat with something
@@ -30,7 +30,7 @@ cp .env.example .env.local   # then paste your key
 npm run dev
 ```
 
-Get a free Gemini key at **https://aistudio.google.com/apikey** — no credit card.
+Get a free Gemini key at **https://aistudio.google.com/apikey** (no credit card).
 
 ```
 GEMINI_API_KEY=your_key_here
@@ -45,7 +45,7 @@ npx vercel
 ```
 
 Then add `GEMINI_API_KEY` under **Project → Settings → Environment Variables**
-and redeploy. Nothing else to configure — no database, no bucket.
+and redeploy. Nothing else to configure: no database, no bucket.
 
 ## Free-tier limits, and what they mean for the demo
 
@@ -61,7 +61,7 @@ The upload step therefore:
 a silent two-minute wait reads as a hang.
 
 Practical ceiling is around **60 screenshots per session**. 500 is not viable on
-a free tier — it would take most of an hour and burn the daily quota.
+a free tier. It would take most of an hour and burn the daily quota.
 
 ## Tuning
 
@@ -92,11 +92,11 @@ src/
 ## Known limits
 
 - **Everything is in `localStorage`.** Clearing browser data loses the persona.
-  Intentional — it is what "no database" means.
+  Intentional: it is what "no database" means.
 - **The transcript is re-sent on every chat turn.** Fine at this size; would need
   server-side storage to scale.
 - **The API key is server-side only** (routes run on Node), so it is not exposed
-  to the browser. But there is **no auth and no rate limiting** — a public
+  to the browser. But there is **no auth and no rate limiting**, so a public
   deployment can have its quota drained by anyone who finds the URL. Keep the URL
   private, or add a shared password before sharing it widely.
 - **Sender detection depends on the screenshots.** If names are not visible the
@@ -105,6 +105,6 @@ src/
 
 ## Consent
 
-Cloning how a real person writes — especially someone deceased — needs the
+Cloning how a real person writes, especially someone deceased, needs the
 agreement of whoever holds that right. Worth settling before this goes in front
 of anyone, not after.

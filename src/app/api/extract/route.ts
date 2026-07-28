@@ -12,7 +12,7 @@ Transcribe EVERY message you can see, in the order they appear top to bottom, ac
 Rules:
 - Identify who sent each message. Use the contact name shown in the screenshot if there is one. If names are not visible, use "Me" for messages in bubbles aligned to the right, and "Them" for bubbles aligned to the left.
 - Use the SAME sender label consistently across all images.
-- Transcribe text exactly: keep original spelling, casing, slang, emoji, punctuation, and typos. Do not correct or clean anything. This is critical — the errors and habits are the point.
+- Transcribe text exactly: keep original spelling, casing, slang, emoji, punctuation, and typos. Do not correct or clean anything. This is critical, because the errors and habits are the point.
 - Include the visible timestamp if there is one.
 - Skip UI chrome: headers, battery/wifi icons, "delivered"/"read" receipts, date dividers, typing indicators.
 - If a message is an image/sticker/voice note with no text, represent it as [photo], [sticker], or [voice note].
