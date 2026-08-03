@@ -332,11 +332,31 @@ export function explain(err: unknown): string {
   if (/401|no auth credentials|invalid api key/i.test(msg)) {
     return 'That OpenRouter API key is not valid. Check it at https://openrouter.ai/keys';
   }
-  if (/402|credits|insufficient/i.test(msg)) {
-    return 'OpenRouter reports insufficient credits for this model. Pick a :free model or add credits.';
+
+  /**
+   * Order matters. The daily-limit 429 body contains the words "Add 10
+   * credits", so a naive /credits/ check reports it as a billing problem and
+   * sends people to top up an account that is not actually out of money.
+   */
+  if (/free-models-per-day|free_tier_daily/i.test(msg)) {
+    // The body carries X-RateLimit-Reset as epoch ms; say when, not just that.
+    const reset = msg.match(/"X-RateLimit-Reset":"?(\d{10,13})"?/)?.[1];
+    let when = 'at midnight UTC';
+    if (reset) {
+      const at = new Date(Number(reset));
+      const hours = Math.max(0, Math.round((at.getTime() - Date.now()) / 3_600_000));
+      when = `in about ${hours} hour${hours === 1 ? '' : 's'} (${at.toUTCString()})`;
+    }
+    return (
+      `Daily limit reached: the OpenRouter free tier allows 50 requests per day, and today's are used up. ` +
+      `It resets ${when}. Adding $10 of credits raises the cap to 1,000/day; the :free models stay free.`
+    );
   }
   if (/429|rate.?limit/i.test(msg)) {
     return 'Rate limited. Free models share an upstream pool, so this is common; wait a moment and retry.';
+  }
+  if (/402|insufficient|payment required/i.test(msg)) {
+    return 'OpenRouter reports insufficient credits for this model. Pick a :free model or add credits.';
   }
   return msg;
 }

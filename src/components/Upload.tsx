@@ -65,9 +65,13 @@ export default function Upload({ onDone }: Props) {
         }
 
         if (!res.ok) {
+          // The daily-cap message from the server is specific and actionable,
+          // so pass it through rather than flattening it to "rate limited".
           if (res.status === 429) {
             throw new Error(
-              'Hit the free-tier rate limit. Wait a minute, then upload a smaller set.'
+              body.error?.includes('Daily limit')
+                ? body.error
+                : 'Hit the per-minute rate limit. Wait a moment, then try again.'
             );
           }
           throw new Error(body.error || `Batch ${i + 1} failed.`);
@@ -145,12 +149,18 @@ export default function Upload({ onDone }: Props) {
       </div>
 
       {files.length > 0 && !busy && (
-        <button
-          onClick={run}
-          className="mt-6 w-full rounded-lg bg-accent px-4 py-3 font-medium text-ink transition hover:opacity-90"
-        >
-          Study these messages
-        </button>
+        <>
+          <button
+            onClick={run}
+            className="mt-6 w-full rounded-lg bg-accent px-4 py-3 font-medium text-ink transition hover:opacity-90"
+          >
+            Study these messages
+          </button>
+          <p className="mt-3 text-center text-xs text-muted">
+            Uses about {Math.ceil(files.length / BATCH_SIZE) + 1} of the 50 free
+            requests allowed per day.
+          </p>
+        </>
       )}
 
       {busy && (
