@@ -1,4 +1,10 @@
-import { getClient, CHAT_MODEL, withRetry } from '@/lib/gemini';
+import {
+  getClient,
+  CHAT_MODELS,
+  withRetry,
+  withModelFallback,
+  explain,
+} from '@/lib/gemini';
 import type { ChatMessage, StyleProfile, Turn } from '@/lib/types';
 
 export const runtime = 'nodejs';
@@ -122,16 +128,18 @@ export async function POST(req: Request) {
     ];
 
     const ai = getClient();
-    const stream = await withRetry(() =>
-      ai.models.generateContentStream({
-        model: CHAT_MODEL,
-        contents,
-        config: {
-          systemInstruction: system,
-          temperature: 0.95,
-          topP: 0.95,
-        },
-      })
+    const stream = await withModelFallback(CHAT_MODELS, (model) =>
+      withRetry(() =>
+        ai.models.generateContentStream({
+          model,
+          contents,
+          config: {
+            systemInstruction: system,
+            temperature: 0.95,
+            topP: 0.95,
+          },
+        })
+      )
     );
 
     const encoder = new TextEncoder();
@@ -158,7 +166,7 @@ export async function POST(req: Request) {
       },
     });
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Chat failed.';
+    const message = err ? explain(err) : 'Chat failed.';
     const rateLimited = /429|quota|rate|resource_exhausted/i.test(message);
     return Response.json({ error: message, rateLimited }, { status: rateLimited ? 429 : 500 });
   }

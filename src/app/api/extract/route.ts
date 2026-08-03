@@ -1,5 +1,12 @@
 import { NextResponse } from 'next/server';
-import { getClient, VISION_MODEL, withRetry, parseJson } from '@/lib/gemini';
+import {
+  getClient,
+  VISION_MODELS,
+  withRetry,
+  withModelFallback,
+  parseJson,
+  explain,
+} from '@/lib/gemini';
 import type { ChatMessage, ExtractedBatch } from '@/lib/types';
 
 export const runtime = 'nodejs';
@@ -39,15 +46,17 @@ export async function POST(req: Request) {
     ];
 
     const ai = getClient();
-    const res = await withRetry(() =>
-      ai.models.generateContent({
-        model: VISION_MODEL,
-        contents: [{ role: 'user', parts }],
-        config: {
-          temperature: 0,
-          responseMimeType: 'application/json',
-        },
-      })
+    const res = await withModelFallback(VISION_MODELS, (model) =>
+      withRetry(() =>
+        ai.models.generateContent({
+          model,
+          contents: [{ role: 'user', parts }],
+          config: {
+            temperature: 0,
+            responseMimeType: 'application/json',
+          },
+        })
+      )
     );
 
     const parsed = parseJson<ExtractedBatch>(res.text ?? '');
@@ -61,7 +70,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ messages });
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Extraction failed.';
+    const message = err ? explain(err) : 'Extraction failed.';
     const rateLimited = /429|quota|rate|resource_exhausted/i.test(message);
     return NextResponse.json(
       { error: message, rateLimited },

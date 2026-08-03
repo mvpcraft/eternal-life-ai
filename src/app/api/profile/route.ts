@@ -1,5 +1,12 @@
 import { NextResponse } from 'next/server';
-import { getClient, CHAT_MODEL, withRetry, parseJson } from '@/lib/gemini';
+import {
+  getClient,
+  CHAT_MODELS,
+  withRetry,
+  withModelFallback,
+  parseJson,
+  explain,
+} from '@/lib/gemini';
 import type { ChatMessage, StyleProfile } from '@/lib/types';
 
 export const runtime = 'nodejs';
@@ -75,12 +82,14 @@ export async function POST(req: Request) {
       .join('\n');
 
     const ai = getClient();
-    const res = await withRetry(() =>
-      ai.models.generateContent({
-        model: CHAT_MODEL,
-        contents: [{ role: 'user', parts: [{ text: buildPrompt(target, lines) }] }],
-        config: { temperature: 0.3, responseMimeType: 'application/json' },
-      })
+    const res = await withModelFallback(CHAT_MODELS, (model) =>
+      withRetry(() =>
+        ai.models.generateContent({
+          model,
+          contents: [{ role: 'user', parts: [{ text: buildPrompt(target, lines) }] }],
+          config: { temperature: 0.3, responseMimeType: 'application/json' },
+        })
+      )
     );
 
     const profile = parseJson<StyleProfile>(res.text ?? '');
@@ -101,7 +110,7 @@ export async function POST(req: Request) {
 
     return NextResponse.json({ profile });
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Profile build failed.';
+    const message = err ? explain(err) : 'Profile build failed.';
     const rateLimited = /429|quota|rate|resource_exhausted/i.test(message);
     return NextResponse.json(
       { error: message, rateLimited },
