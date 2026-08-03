@@ -52,47 +52,129 @@ function buildSystemPrompt(
   const list = (label: string, arr: string[]) =>
     arr?.length ? `${label}: ${arr.join(' | ')}` : '';
 
-  return `You ARE ${name}. You are texting someone you know. Reply exactly as ${name} would.
+  /**
+   * Two failure modes shaped this prompt.
+   *
+   * Parroting: listing real messages under "match this voice precisely" made
+   * the model replay them verbatim, so "hey" got answered with a line about
+   * the cat. The samples are now explicitly labelled style-only, with
+   * answering the actual question stated as the first rule.
+   *
+   * Length: small models pad. The instruction has to be concrete, so the
+   * observed average word count is computed and given as a number.
+   */
+  const sample = profile.exemplars.length
+    ? profile.exemplars
+    : relevant.map((m) => m.text);
 
-HOW ${name} WRITES:
+  const words =
+    sample.length > 0
+      ? Math.max(
+          3,
+          Math.round(
+            sample.reduce((n, s) => n + s.trim().split(/\s+/).length, 0) / sample.length
+          )
+        )
+      : 8;
+
+  return `You are ${name}, replying to a text message from someone you know.
+
+YOUR PERSONALITY AND VOICE:
 ${profile.voice}
 
-${list('Phrases they use constantly', profile.signaturePhrases)}
-${list('How they start conversations', profile.openers)}
-${list('How they end conversations', profile.closers)}
-${list('Emoji they use', profile.emoji)}
 Punctuation and casing: ${profile.punctuation}
-Message length: ${profile.messageLength}
-${list('Topics they return to', profile.topics)}
-${list('Quirks', profile.quirks)}
+${list('Topics you talk about', profile.topics)}
+${list('Your quirks', profile.quirks)}
+${list('Words and phrases you use', profile.signaturePhrases)}
+${list('Emoji you use', profile.emoji)}
 
-REAL MESSAGES THEY SENT. Match this voice precisely:
-${profile.exemplars.map((e) => `- ${e}`).join('\n')}
+EXAMPLES OF YOUR WRITING STYLE (imitate the STYLE only, never repeat these lines):
+${sample.slice(0, 10).map((e) => `- ${e}`).join('\n')}
 
 ${
   relevant.length
-    ? `THINGS THEY ACTUALLY SAID RELATED TO THIS TOPIC. Reuse their real phrasing and opinions where it fits:\n${relevant
+    ? `FOR CONTEXT, things you have said on this topic before (background only, do not repeat verbatim):\n${relevant
+        .slice(0, 6)
         .map((m) => `- ${m.text}`)
-        .join('\n')}`
+        .join('\n')}\n`
     : ''
+}${
+    recentContext.length
+      ? `RECENT CONVERSATION HISTORY:\n${recentContext
+          .slice(-10)
+          .map((m) => `${m.sender}: ${m.text}`)
+          .join('\n')}\n`
+      : ''
+  }
+HOW TO REPLY:
+1. ANSWER THE MESSAGE YOU WERE JUST SENT. This matters most. If they ask how you are, say how you are. If they greet you, greet them back. Never reply with an unrelated line from the examples above.
+2. Write a NEW sentence in your own voice. Do not copy the example messages. They show your style, not your answer.
+3. Keep it to about ${words} words. Text like a person, not an essay.
+4. Match your casing and punctuation exactly, including lowercase and missing apostrophes if that is your habit.
+5. Write only the message text. No quotation marks, no narration, no name prefix.
+6. You are ${name}, a real person. Never mention being an AI or a model.
+7. If asked something you would not know, deflect or change the subject the way ${name} would.`;
 }
 
-${
-  recentContext.length
-    ? `HOW THE ORIGINAL CONVERSATION WAS GOING:\n${recentContext
-        .map((m) => `${m.sender}: ${m.text}`)
-        .join('\n')}`
-    : ''
-}
+/**
+ * Models still occasionally prefix the sender name or wrap the reply in
+ * quotes despite being told not to. Buffer the stream, strip those, and emit
+ * the cleaned text. Replies are short enough that buffering costs nothing
+ * perceptible.
+ */
+function cleanReply(
+  src: ReadableStream<Uint8Array>,
+  name: string
+): ReadableStream<Uint8Array> {
+  return new ReadableStream({
+    async start(controller) {
+      const reader = src.getReader();
+      const decoder = new TextDecoder();
+      let text = '';
 
-RULES. These matter more than being helpful:
-- Write ONLY what ${name} would type. No narration, no stage directions, no quotation marks around the reply.
-- Match their casing and punctuation habits exactly, including lowercase and missing apostrophes if that is what they do.
-- Keep the length they actually use. If they text short, text short. Do not write paragraphs if they never do.
-- Reproduce their typos and grammar habits. Do not write more correctly than they do.
-- Never mention being an AI, a model, or a persona. You are ${name}.
-- If asked something ${name} would not know, respond the way ${name} would deflect, joke, or change the subject.
-- Do not be an assistant. Do not offer help unless ${name} would.`;
+      try {
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          text += decoder.decode(value, { stream: true });
+        }
+      } finally {
+        reader.releaseLock();
+      }
+
+      let out = text.trim();
+
+      // "Sam: hello" -> "hello"
+      const prefix = new RegExp(`^${name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*:\\s*`, 'i');
+      out = out.replace(prefix, '').trim();
+
+      // Whole reply wrapped in quotes.
+      if (out.length > 1 && /^["“'].*["”']$/s.test(out)) {
+        out = out.slice(1, -1).trim();
+      }
+
+      // Stage directions like *laughs*.
+      out = out.replace(/^\*[^*]+\*\s*/, '').trim();
+
+      /**
+       * Small models occasionally emit a stray token from another script
+       * mid-word ("day{greek}", "{cyrillic} door"). Lowering temperature makes
+       * it rarer but cannot rule it out, so drop characters outside Latin,
+       * common punctuation, and emoji. Emoji are kept because they are often
+       * part of the person's real style.
+       */
+      out = out
+        .replace(
+          /[^\p{Script=Latin}\p{Nd}\p{P}\p{Zs}\n\r\p{Emoji_Presentation}\p{Extended_Pictographic}]/gu,
+          ''
+        )
+        .replace(/\s{2,}/g, ' ')
+        .trim();
+
+      controller.enqueue(new TextEncoder().encode(out || '…'));
+      controller.close();
+    },
+  });
 }
 
 type Body = {
@@ -111,7 +193,9 @@ export async function POST(req: Request) {
     }
 
     const relevant = findRelevant(transcript, profile.displayName, message);
-    const recentContext = transcript.slice(-25);
+    // A long dump of the original chat makes the model continue that
+    // conversation instead of answering the new message.
+    const recentContext = transcript.slice(-10);
     const system = buildSystemPrompt(profile, relevant, recentContext);
 
     const messages: Msg[] = [
@@ -125,13 +209,19 @@ export async function POST(req: Request) {
       { role: 'user', content: message },
     ];
 
-    const body = await stream({
+    const raw = await stream({
       kind: 'text',
       models: TEXT_MODELS,
       messages,
-      temperature: 0.95,
-      maxTokens: 1024,
+      // A 20B model emits corrupted tokens as temperature rises: 0.95 gave
+      // "I told luggage" and "how's it advogado", 0.7 still gave "day{greek}"
+      // and "{cyrillic} door". 0.5 keeps replies varied without the garbage.
+      temperature: 0.5,
+      // Texts are short. A tight cap discourages the model from padding.
+      maxTokens: 160,
     });
+
+    const body = cleanReply(raw, profile.displayName);
 
     return new Response(body, {
       headers: {
