@@ -103,9 +103,11 @@ async function once(model: string, o: CallOpts): Promise<string> {
       messages: o.messages,
       temperature: o.temperature ?? 0.7,
       max_tokens: o.maxTokens ?? 2048,
-      // Reasoning models otherwise burn the token budget thinking before
-      // answering, which for short chat replies is pure latency.
-      reasoning: { exclude: true },
+      // Reasoning tokens count against max_tokens. gpt-oss-20b spent 857 of
+      // 1113 on thinking, which starves the actual answer and returns empty
+      // content. It refuses reasoning:{enabled:false} outright, but 'low'
+      // effort drops it to single digits.
+      reasoning: { effort: 'low', exclude: true },
       ...(o.json ? { response_format: { type: 'json_object' } } : {}),
     }),
   });
@@ -120,7 +122,7 @@ async function once(model: string, o: CallOpts): Promise<string> {
   }
 
   let data: {
-    choices?: { message?: { content?: string } }[];
+    choices?: { message?: { content?: string }; finish_reason?: string }[];
     error?: { message?: string };
   };
   try {
@@ -137,8 +139,26 @@ async function once(model: string, o: CallOpts): Promise<string> {
     throw err;
   }
 
-  const text = data.choices?.[0]?.message?.content;
-  if (!text) throw new Error('Model returned an empty response.');
+  const choice = data.choices?.[0];
+  const text = choice?.message?.content;
+
+  if (!text?.trim()) {
+    /**
+     * Reasoning models can burn the whole token budget thinking and return
+     * empty content with finish_reason 'length'. Treated as transient so the
+     * caller retries and can fall through to another model.
+     */
+    const truncated = choice?.finish_reason === 'length';
+    const err = new Error(
+      truncated
+        ? 'The model ran out of tokens before answering. Retrying with a shorter input usually fixes it.'
+        : 'Model returned an empty response.'
+    );
+    (err as { status?: number }).status = 429; // routes through the retry path
+    (err as { body?: string }).body = 'empty-response';
+    throw err;
+  }
+
   return text;
 }
 
@@ -199,7 +219,7 @@ export async function stream(o: CallOpts): Promise<ReadableStream<Uint8Array>> {
       messages: o.messages,
       temperature: o.temperature ?? 0.7,
       max_tokens: o.maxTokens ?? 2048,
-      reasoning: { exclude: true },
+      reasoning: { effort: 'low', exclude: true },
       stream: true,
     }),
   });

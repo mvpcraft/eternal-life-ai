@@ -77,7 +77,7 @@ export async function POST(req: Request) {
      */
     const own = transcript.filter((m) => m.sender === target);
     const lines = own
-      .slice(-200)
+      .slice(-120)
       .map((m) => m.text)
       .join('\n');
 
@@ -87,7 +87,9 @@ export async function POST(req: Request) {
       messages: [{ role: 'user', content: buildPrompt(target, lines) }],
       temperature: 0.3,
       json: true,
-      maxTokens: 2048,
+      // Generous headroom: the profile JSON is large, and any reasoning tokens
+      // are drawn from this same budget.
+      maxTokens: 4096,
       // Must finish inside the route's maxDuration so the client gets JSON
       // rather than the platform's plain-text timeout page.
       timeoutMs: 170_000,
