@@ -32,9 +32,26 @@ export default function PickSender({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ transcript, target }),
       });
-      const body = await res.json();
+
+      /**
+       * On a timeout the platform returns a plain-text error page, not JSON,
+       * so res.json() throws its own parse error and hides the real cause.
+       */
+      const text = await res.text();
+      let body: { error?: string; profile?: StyleProfile };
+      try {
+        body = JSON.parse(text);
+      } catch {
+        throw new Error(
+          res.status === 504 || /timeout|took too long/i.test(text)
+            ? 'That took too long to analyse. Free models are slow under load. Try again, or use fewer screenshots.'
+            : `Server error (${res.status}). ${text.slice(0, 120)}`
+        );
+      }
+
       if (!res.ok) throw new Error(body.error || 'Could not build the profile.');
-      onReady(body.profile as StyleProfile);
+      if (!body.profile) throw new Error('No profile came back. Try again.');
+      onReady(body.profile);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong.');
       setBusy(false);

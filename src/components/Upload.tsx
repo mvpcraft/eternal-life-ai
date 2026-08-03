@@ -53,8 +53,18 @@ export default function Upload({ onDone }: Props) {
           body: JSON.stringify({ images: batches[i] }),
         });
 
+        // Timeouts return a plain-text page, so never call .json() blindly.
+        const text = await res.text();
+        let body: { messages?: ChatMessage[]; error?: string };
+        try {
+          body = JSON.parse(text);
+        } catch {
+          throw new Error(
+            `Batch ${i + 1} failed (${res.status}). Free models are slow under load; try again with fewer screenshots.`
+          );
+        }
+
         if (!res.ok) {
-          const body = await res.json().catch(() => ({}));
           if (res.status === 429) {
             throw new Error(
               'Hit the free-tier rate limit. Wait a minute, then upload a smaller set.'
@@ -63,7 +73,7 @@ export default function Upload({ onDone }: Props) {
           throw new Error(body.error || `Batch ${i + 1} failed.`);
         }
 
-        const { messages } = (await res.json()) as { messages: ChatMessage[] };
+        const messages = body.messages ?? [];
         all.push(...messages);
         setDone(i + 1);
 

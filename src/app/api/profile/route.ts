@@ -3,7 +3,9 @@ import { complete, TEXT_MODELS, parseJson, explain } from '@/lib/llm';
 import type { ChatMessage, StyleProfile } from '@/lib/types';
 
 export const runtime = 'nodejs';
-export const maxDuration = 60;
+// Free models are slow; 60s was not enough for a long transcript. 300s is the
+// Vercel ceiling on the free plan's Fluid compute.
+export const maxDuration = 300;
 
 /**
  * This is the "training" step from the user's point of view. There is no
@@ -68,10 +70,15 @@ export async function POST(req: Request) {
       );
     }
 
-    // Keep the most recent slice: enough signal, well under the context limit.
-    const lines = transcript
-      .slice(-600)
-      .map((m) => `${m.sender}: ${m.text}`)
+    /**
+     * Only the target's own messages matter for style, and free models are slow
+     * enough that a full two-sided transcript can push the request past the
+     * serverless timeout. Cap it: 200 of their messages is ample signal.
+     */
+    const own = transcript.filter((m) => m.sender === target);
+    const lines = own
+      .slice(-200)
+      .map((m) => m.text)
       .join('\n');
 
     const raw = await complete({
@@ -80,7 +87,10 @@ export async function POST(req: Request) {
       messages: [{ role: 'user', content: buildPrompt(target, lines) }],
       temperature: 0.3,
       json: true,
-      maxTokens: 3072,
+      maxTokens: 2048,
+      // Must finish inside the route's maxDuration so the client gets JSON
+      // rather than the platform's plain-text timeout page.
+      timeoutMs: 170_000,
     });
 
     const profile = parseJson<StyleProfile>(raw);

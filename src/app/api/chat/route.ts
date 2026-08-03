@@ -3,7 +3,7 @@ import type { Msg } from '@/lib/llm';
 import type { ChatMessage, StyleProfile, Turn } from '@/lib/types';
 
 export const runtime = 'nodejs';
-export const maxDuration = 60;
+export const maxDuration = 300;
 
 const STOPWORDS = new Set([
   'the', 'and', 'you', 'that', 'this', 'have', 'for', 'not', 'with', 'was',
