@@ -1,12 +1,5 @@
 import { NextResponse } from 'next/server';
-import {
-  getClient,
-  CHAT_MODELS,
-  withRetry,
-  withModelFallback,
-  parseJson,
-  explain,
-} from '@/lib/gemini';
+import { complete, TEXT_MODELS, parseJson, explain } from '@/lib/llm';
 import type { ChatMessage, StyleProfile } from '@/lib/types';
 
 export const runtime = 'nodejs';
@@ -81,18 +74,16 @@ export async function POST(req: Request) {
       .map((m) => `${m.sender}: ${m.text}`)
       .join('\n');
 
-    const ai = getClient();
-    const res = await withModelFallback(CHAT_MODELS, (model) =>
-      withRetry(() =>
-        ai.models.generateContent({
-          model,
-          contents: [{ role: 'user', parts: [{ text: buildPrompt(target, lines) }] }],
-          config: { temperature: 0.3, responseMimeType: 'application/json' },
-        })
-      )
-    );
+    const raw = await complete({
+      kind: 'text',
+      models: TEXT_MODELS,
+      messages: [{ role: 'user', content: buildPrompt(target, lines) }],
+      temperature: 0.3,
+      json: true,
+      maxTokens: 3072,
+    });
 
-    const profile = parseJson<StyleProfile>(res.text ?? '');
+    const profile = parseJson<StyleProfile>(raw);
     profile.displayName = target;
 
     // Guarantee array fields exist so the UI and prompt builder can trust them.

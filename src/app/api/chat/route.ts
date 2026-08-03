@@ -1,10 +1,5 @@
-import {
-  getClient,
-  CHAT_MODELS,
-  withRetry,
-  withModelFallback,
-  explain,
-} from '@/lib/gemini';
+import { stream, TEXT_MODELS, explain } from '@/lib/llm';
+import type { Msg } from '@/lib/llm';
 import type { ChatMessage, StyleProfile, Turn } from '@/lib/types';
 
 export const runtime = 'nodejs';
@@ -119,44 +114,23 @@ export async function POST(req: Request) {
     const recentContext = transcript.slice(-25);
     const system = buildSystemPrompt(profile, relevant, recentContext);
 
-    const contents = [
-      ...history.slice(-20).map((t) => ({
-        role: t.role === 'assistant' ? ('model' as const) : ('user' as const),
-        parts: [{ text: t.content }],
-      })),
-      { role: 'user' as const, parts: [{ text: message }] },
+    const messages: Msg[] = [
+      { role: 'system', content: system },
+      ...history.slice(-20).map(
+        (t): Msg => ({
+          role: t.role === 'assistant' ? 'assistant' : 'user',
+          content: t.content,
+        })
+      ),
+      { role: 'user', content: message },
     ];
 
-    const ai = getClient();
-    const stream = await withModelFallback(CHAT_MODELS, (model) =>
-      withRetry(() =>
-        ai.models.generateContentStream({
-          model,
-          contents,
-          config: {
-            systemInstruction: system,
-            temperature: 0.95,
-            topP: 0.95,
-          },
-        })
-      )
-    );
-
-    const encoder = new TextEncoder();
-    const body = new ReadableStream({
-      async start(controller) {
-        try {
-          for await (const chunk of stream) {
-            const text = chunk.text;
-            if (text) controller.enqueue(encoder.encode(text));
-          }
-        } catch (err) {
-          const msg = err instanceof Error ? err.message : 'stream error';
-          controller.enqueue(encoder.encode(`\n\n[error: ${msg}]`));
-        } finally {
-          controller.close();
-        }
-      },
+    const body = await stream({
+      kind: 'text',
+      models: TEXT_MODELS,
+      messages,
+      temperature: 0.95,
+      maxTokens: 1024,
     });
 
     return new Response(body, {

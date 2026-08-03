@@ -5,7 +5,7 @@ import { downscale, chunk, sortByName } from '@/lib/images';
 import type { ChatMessage } from '@/lib/types';
 
 const BATCH_SIZE = 4; // images per request; balances RPM against payload size
-const PAUSE_MS = 4500; // ~13 req/min, under the free-tier ceiling
+const PAUSE_MS = 3500; // ~17 req/min, under OpenRouter's 20 RPM free-tier ceiling
 
 type Props = {
   onDone: (transcript: ChatMessage[], participants: string[]) => void;
@@ -165,7 +165,7 @@ export default function Upload({ onDone }: Props) {
       )}
 
       <p className="mt-10 text-xs text-muted">
-        Screenshots are sent to Google Gemini for reading and are not stored on any
+        Screenshots are sent to OpenRouter for reading and are not stored on any
         server. The extracted conversation stays in this browser.
       </p>
     </div>

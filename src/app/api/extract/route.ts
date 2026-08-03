@@ -1,12 +1,6 @@
 import { NextResponse } from 'next/server';
-import {
-  getClient,
-  VISION_MODELS,
-  withRetry,
-  withModelFallback,
-  parseJson,
-  explain,
-} from '@/lib/gemini';
+import { complete, VISION_MODELS, parseJson, explain } from '@/lib/llm';
+import type { ImagePart, TextPart } from '@/lib/llm';
 import type { ChatMessage, ExtractedBatch } from '@/lib/types';
 
 export const runtime = 'nodejs';
@@ -38,28 +32,26 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'No images provided.' }, { status: 400 });
     }
 
-    const parts = [
-      { text: PROMPT },
-      ...images.map((img) => ({
-        inlineData: { mimeType: img.mimeType, data: img.data },
-      })),
+    const parts: (TextPart | ImagePart)[] = [
+      { type: 'text', text: PROMPT },
+      ...images.map(
+        (img): ImagePart => ({
+          type: 'image_url',
+          image_url: { url: `data:${img.mimeType};base64,${img.data}` },
+        })
+      ),
     ];
 
-    const ai = getClient();
-    const res = await withModelFallback(VISION_MODELS, (model) =>
-      withRetry(() =>
-        ai.models.generateContent({
-          model,
-          contents: [{ role: 'user', parts }],
-          config: {
-            temperature: 0,
-            responseMimeType: 'application/json',
-          },
-        })
-      )
-    );
+    const raw = await complete({
+      kind: 'vision',
+      models: VISION_MODELS,
+      messages: [{ role: 'user', content: parts }],
+      temperature: 0,
+      json: true,
+      maxTokens: 4096,
+    });
 
-    const parsed = parseJson<ExtractedBatch>(res.text ?? '');
+    const parsed = parseJson<ExtractedBatch>(raw);
     const messages: ChatMessage[] = (parsed.messages ?? [])
       .filter((m) => m?.text?.trim() && m?.sender?.trim())
       .map((m) => ({

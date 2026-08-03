@@ -11,7 +11,7 @@ There is **no model training or fine-tuning**. No free API offers it, and 50
 images is not a training set. What happens instead:
 
 1. **Extract**: screenshots are downscaled in the browser, batched, and sent to
-   Gemini Vision, which transcribes every message with its sender.
+   a vision model via OpenRouter, which transcribes every message with its sender.
 2. **Distil**: the transcript is analysed into a structured *style profile*,
    casing, punctuation, message length, signature phrases, emoji, topics, quirks,
    and 8–15 verbatim example messages.
@@ -30,13 +30,22 @@ cp .env.example .env.local   # then paste your key
 npm run dev
 ```
 
-Get a free Gemini key at **https://aistudio.google.com/apikey** (no credit card).
+Get a free key at **https://openrouter.ai/keys**.
 
 ```
-GEMINI_API_KEY=your_key_here
+OPENROUTER_API_KEY=sk-or-v1-...
+LLM_MODEL="openai/gpt-oss-20b:free"
+LLM_VISION_MODEL="google/gemma-4-31b-it:free"
 ```
 
 Open http://localhost:3000.
+
+### Why two models
+
+`LLM_MODEL` handles chat and the style profile. `LLM_VISION_MODEL` reads the
+screenshots, so it **must** accept image input. `gpt-oss-20b` is text-only and
+returns an error if used for extraction. Both auto-fall-back if a model is
+unavailable or rate-limited.
 
 ## Deploy to Vercel
 
@@ -44,24 +53,32 @@ Open http://localhost:3000.
 npx vercel
 ```
 
-Then add `GEMINI_API_KEY` under **Project → Settings → Environment Variables**
-and redeploy. Nothing else to configure: no database, no bucket.
+Then add `OPENROUTER_API_KEY` under **Project → Settings → Environment
+Variables** and redeploy. Nothing else to configure: no database, no bucket.
 
-## Free-tier limits, and what they mean for the demo
+## Free-tier limits: read this before demoing
 
-Gemini free tier is roughly **10–15 requests/minute** and **~1,500/day**
-(Google cut these substantially in late 2025).
+OpenRouter free models allow **20 requests/minute** and, more importantly,
+**50 requests/day** until the account has purchased at least $10 in credits.
+After that it is 1,000/day.
 
-The upload step therefore:
-- sends **4 screenshots per request**
-- **pauses ~4.5s between batches** to stay under the ceiling
-- retries with exponential backoff on 429/503
+**That 50/day cap is the binding constraint.** The upload step sends 4
+screenshots per request, so:
 
-**50 screenshots ≈ 13 requests ≈ 1–2 minutes.** The progress bar says so, because
-a silent two-minute wait reads as a hang.
+| Screenshots | Requests | Fits in 50/day? |
+| :--- | :--- | :--- |
+| 20 | 5 | yes, comfortably |
+| 50 | 13 | yes, but ~1/4 of the daily budget |
+| 200 | 50 | no, one upload consumes the entire day |
 
-Practical ceiling is around **60 screenshots per session**. 500 is not viable on
-a free tier. It would take most of an hour and burn the daily quota.
+Chat replies cost one request each on top of that.
+
+**Recommendation:** put $10 of credits on the OpenRouter account before any
+client demo. The `:free` models stay free; the deposit only lifts the daily
+cap to 1,000. Without it, a few test runs can exhaust the day mid-demo.
+
+Free models also share an upstream pool, so **429s are routine**. The app
+retries with backoff and falls through to alternate models automatically.
 
 ## Tuning
 
@@ -70,7 +87,7 @@ a free tier. It would take most of an hour and burn the daily quota.
 | Faster upload (risk 429s) | `BATCH_SIZE` ↑ / `PAUSE_MS` ↓ in `src/components/Upload.tsx` |
 | More faithful mimicry | `temperature` in `src/app/api/chat/route.ts` (currently 0.95) |
 | Better OCR on dense screenshots | `maxDim` in `src/lib/images.ts` (currently 1200) |
-| Different model | `GEMINI_CHAT_MODEL` / `GEMINI_VISION_MODEL` env vars |
+| Different model | `LLM_MODEL` / `LLM_VISION_MODEL` env vars |
 
 ## Structure
 
@@ -83,7 +100,7 @@ src/
     api/chat/route.ts     profile + excerpts → streamed reply
   components/             Upload, PickSender, Chat
   lib/
-    gemini.ts             client, retry/backoff, JSON parsing
+    llm.ts                OpenRouter client, model fallback, streaming, JSON parsing
     images.ts             browser downscale, batching, natural sort
     storage.ts            localStorage persona + turns
     types.ts
